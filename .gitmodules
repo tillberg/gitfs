@@ -1,0 +1,6 @@
+[submodule "node_modules/tillberg_common"]
+	path = node_modules/tillberg_common
+	url = git://github.com/tillberg/tillberg_common.git
+[submodule "node_modules/vows"]
+	path = node_modules/vows
+	url = git://github.com/tillberg/vows.git

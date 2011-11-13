@@ -1,0 +1,26 @@
+{
+  "author": "Dan Tillberg <dan@tillberg.us> (http://tillberg.us/)",
+  "name": "async-git",
+  "description": "asynchronous git for node.js",
+  "version": "0.1.0",
+  "homepage": "https://github.com/tillberg/async-git",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/tillberg/async-git.git"
+  },
+  "main": "lib/git.js",
+  "scripts": {
+    "test": "vows test/test.js"
+  },
+  "engines": {
+    "node": "~0.4.12"
+  },
+  "dependencies": {
+    "underscore": "1.2.1",
+    "underscore.string": "1.2.0",
+    "optimist": "0.2.8"
+  },
+  "devDependencies": {
+    "vows": "0.5.13"
+  }
+}
