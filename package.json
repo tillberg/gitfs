@@ -18,7 +18,9 @@
   "dependencies": {
     "underscore": "1.2.1",
     "underscore.string": "1.2.0",
-    "optimist": "0.2.8"
+    "optimist": "0.2.8",
+    "async": "0.1.15",
+    "fs-ext": "0.2.2"
   },
   "devDependencies": {
     "vows": "0.5.13"
