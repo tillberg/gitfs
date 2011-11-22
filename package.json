@@ -1,14 +1,14 @@
 {
   "author": "Dan Tillberg <dan@tillberg.us> (http://tillberg.us/)",
-  "name": "async-git",
-  "description": "asynchronous git for node.js",
+  "name": "gitfs",
+  "description": "play with remote git repos like a filesystem",
   "version": "0.1.0",
-  "homepage": "https://github.com/tillberg/async-git",
+  "homepage": "https://github.com/tillberg/node-gitfs",
   "repository": {
     "type": "git",
-    "url": "git://github.com/tillberg/async-git.git"
+    "url": "git://github.com/tillberg/node-gitfs.git"
   },
-  "main": "lib/git.js",
+  "main": "lib/gitfs.js",
   "scripts": {
     "test": "vows test/test.js"
   },
@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "underscore": "1.2.1",
-    "underscore.string": "1.2.0",
+    "underscore.string": "2.0.0",
     "optimist": "0.2.8",
     "async": "0.1.15",
     "nimble": "0.0.2"

@@ -5,8 +5,9 @@ var assert = require('assert');
 var _ = require('underscore');
 var crypto = require('crypto');
 var async = require('async');
+var path = require('path');
 
-var gitfs = require('../lib/git');
+var gitfs = require('../lib/gitfs');
 var Repo = require('../lib/repo').Repo;
 
 var cleanUpPrevious = async.memoize(function (cb) {
@@ -15,6 +16,8 @@ var cleanUpPrevious = async.memoize(function (cb) {
     cb();
   });
 });
+
+var rgxSha1 = /^[0-9a-f]{40}$/;
 
 function getGit(index, cb) {
   cleanUpPrevious(function() {
@@ -74,37 +77,79 @@ var commands = {
   },
   'get Repo': function(repo, cb) {
     cb(null, repo);
+  },
+  'get master': function(repo, cb) {
+    repo.branch('master', function(err, tree) {
+      cb(null, tree);
+    });
   }
 };
 
-var nextSuiteIndex = 1;
-function ctxLoad() {
-  var suiteIndex = this.suite._index = this.suite._index || nextSuiteIndex++;
-  var callback = this.callback;
-  var match = this.context.name.match(/we (.+) of (.+)$/);
-  if (!match) { return callback('Test error, could not parse ' + this.context.name); }
-  var url = match[2];
-  var command = match[1];
-  if (!commands[command]) { return callback('Test error, could not find parsed command: ' + command); }
-  var self = this;
-  getGit(suiteIndex, function(git) {
-    var repo = git.repo(url);
-    commands[command](repo, callback);
+var repoIndex = 1;
+function createRepo(cb) {
+  var myPath = 'var/testrepo' + (repoIndex++);
+  exec('mkdir', ['-p', myPath], { cwd: './' }, function() {
+    exec('git', ['init'], { cwd: myPath }, function() {
+      cb(myPath);
+    });
   });
+}
+
+function initRepo(myPath, type, cb) {
+  fs.writeFile(path.join(myPath, 'README'), 'hello\n', function(err) {
+    exec('git', ['add', 'README'], { cwd: myPath }, function(err) {
+      exec('git', ['commit', '-m', 'Initial commit.'], { cwd: myPath }, function(err) {
+        cb();
+      });
+    });
+  });
+}
+
+function ctxLoad(gitIndex) {
+  gitIndex = gitIndex || 999;
+  return function() {
+    var callback = this.callback;
+    var match = this.context.name.match(/we (.+) of (.+)$/);
+    if (!match) { return callback('Test error, could not parse ' + this.context.name); }
+    var urlish = match[2];
+    var command = match[1];
+    if (!commands[command]) { return callback('Test error, could not find parsed command: ' + command); }
+    var self = this;
+    function run(url) {
+      getGit(gitIndex, function(git) {
+        var repo = git.repo(url);
+        commands[command](repo, callback);
+      });
+    }
+    if (urlish.match(/a new/)) {
+      createRepo(function(newUrl) {
+        if (urlish.match(/empty/)) {
+          run(newUrl);
+        } else {
+          var type = urlish.match(/repo-(\w+)$/)[1];
+          initRepo(newUrl, type, function() {
+            run(newUrl);
+          });
+        }
+      });
+    } else {
+      run(urlish);
+    }
+  };
 }
 
 var repoFuncTests = vows.describe('Repo Functionality');
 
 repoFuncTests.addBatch({
   'When we list branches of git://github.com/tillberg/euler.git': {
-    topic: ctxLoad,
+    topic: ctxLoad(),
     'we get an array of branch names': function(branches) {
       assert.lengthOf(branches, 1);
       assert.equal(branches[0], 'master');
     }
   },
   'When we get Repo of git://github.com/tillberg/euler.git': {
-    topic: ctxLoad,
+    topic: ctxLoad(),
     'we get a Repo object': function(repo) {
       assert.ok(repo.is(Repo));
     },
@@ -115,16 +160,46 @@ repoFuncTests.addBatch({
       assert.equal(_.last(repo.basePath.split('/')), expBasePath);
     },
     'and then we get Repo of git://github.com/tillberg/euler.git': {
-      topic: ctxLoad,
+      topic: ctxLoad(),
       'it is the same as the first time we got that repo': function(repo) {
         assert.equal(repo, this.context.topics[1]);
+      }
+    },
+    'and then in another Git instance we get Repo of git://github.com/tillberg/euler.git': {
+      topic: ctxLoad(1),
+      'it is a different object than the first time we got that repo': function(repo) {
+        assert.notEqual(repo, this.context.topics[1]);
+      }
+    }
+  },
+  'When we get Repo of a new empty repo': {
+    topic: ctxLoad(),
+    'and get master': {
+      topic: function(repo) {
+        repo.branch('master', this.callback);
+      },
+      'and we should get an error because master does not exist': function(err, tree) {
+        assert.ok(err);
+        assert.isNull(tree);
+      }
+    }
+  },
+  'When we get master of a new repo-A': {
+    topic: ctxLoad(),
+    'and get README': {
+      topic: function(repo) {
+        repo.readFile('README', this.callback);
+      },
+      'we should get a file that says hello': function(err, data) {
+        assert.ifError(err);
+        assert.equal(data, 'hello\n');
       }
     }
   }
 });
 repoFuncTests.export(module);
 
-// Remove the old gitfs-var folder.  Do this kind of sloppily so
+// Remove the old gitfs-var folder.  We do this kind of sloppily so
 // that the `Basic Usage` tests can just use gitfs without going
 // through the `getGit()` guard like the code above.
 try { fs.renameSync('gitfs-var', 'gitfs-destroy'); } catch (ex) { }
@@ -147,7 +222,7 @@ basicUsageTests.addBatch({
     },
     'and it is correct': function(err, tree) {
       assert.ifError(err);
-      assert.equal('62220098cf3a628110022f770fe8af874f547d4a', tree.sha1);
+      assert.equal(tree.sha1, '62220098cf3a628110022f770fe8af874f547d4a');
     }
   },
   'We can checkout a snapshot of a repo to a local path': {
@@ -184,6 +259,57 @@ basicUsageTests.addBatch({
     'and it should have the contents as of that version': function(err, data) {
       assert.match(data, /class Array\; def sum/);
       assert.lengthOf(data, 885);
+    }
+  },
+  'We can get a file from a non-master branch of a repo': {
+    topic: function() {
+      gitfs.repo('git://github.com/tillberg/cicero_demo.git').branch('old').readFile('doc/index.html', this.callback);
+    },
+    'and it should have the correct `old` text': function(err, data) {
+      assert.ifError(err);
+      assert.match(data, /This is the old branch/);
+      assert.lengthOf(data, 101);
+    }
+  },
+  'We can get a file that does not exist': {
+    topic: function() {
+      gitfs.repo('git://github.com/tillberg/cicero_demo.git').readFile('doesnotexist', this.callback);
+    },
+    'and err should be raised accordingly': function(err, data) {
+      assert.ok(err);
+      assert.isUndefined(data); // Shouldn't get data back
+    }
+  },
+  'We can commit a change to a repo': {
+    topic: function() {
+      var callback = this.callback;
+      var repo = gitfs.repo('git://github.com/tillberg/cicero_demo.git').branch('master', function(err, tree) {
+        var origSha1 = tree.sha1;
+        tree.readFile('app/demo2.js', function(err, data) {
+          var newdata = data.replace('hi, ', 'arrr, me matey ');
+          tree.commit(origSha1, 'commit message', {
+            'app/demo2.js': newdata
+          }, function(err, newTree) {
+            callback(err, newTree, tree);
+          });
+        });
+      });
+    },
+    'and we should get a new sha1 for the new commit': function(err, newTree, tree) {
+      assert.ifError(err);
+      assert.notEqual(tree, newTree);
+      assert.notEqual(tree.sha1, newTree.sha1);
+      assert.match(tree.sha1, rgxSha1);
+      assert.match(newTree.sha1, rgxSha1);
+    },
+    'and we get the file we changed': {
+      topic: function(newTree) {
+        newTree.readFile('app/demo2.js', this.callback);
+      },
+      'it should contain the modified text': function(err, data) {
+        assert.ifError(err);
+        assert.match(data, /arrr, me matey/);
+      }
     }
   }
 });
