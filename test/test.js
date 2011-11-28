@@ -5,6 +5,7 @@ var assert = require('assert');
 var _ = require('underscore');
 var crypto = require('crypto');
 var async = require('async');
+var nimble = require('nimble');
 var path = require('path');
 
 var gitfs = require('../lib/gitfs');
@@ -39,6 +40,7 @@ function ctxGit(index) {
     });
   };
 }
+function time() { return (new Date()).getTime(); }
 
 gitfsTests.addBatch({
   'When we load up Git': {
@@ -71,9 +73,7 @@ gitfsTests.export(module);
 
 var commands = {
   'list branches': function(repo, cb) {
-    repo.getBranches(function(branches) {
-      cb(null, branches);
-    });
+    repo.getBranches(cb);
   },
   'get Repo': function(repo, cb) {
     cb(null, repo);
@@ -96,7 +96,7 @@ function createRepo(cb) {
 }
 
 function initRepo(myPath, type, cb) {
-  fs.writeFile(path.join(myPath, 'README'), 'hello\n', function(err) {
+  fs.writeFile(path.join(myPath, 'README'), 'hello' + type + '\n', function(err) {
     exec('git', ['add', 'README'], { cwd: myPath }, function(err) {
       exec('git', ['commit', '-m', 'Initial commit.'], { cwd: myPath }, function(err) {
         cb();
@@ -141,11 +141,12 @@ function ctxLoad(gitIndex) {
 var repoFuncTests = vows.describe('Repo Functionality');
 
 repoFuncTests.addBatch({
-  'When we list branches of git://github.com/tillberg/euler.git': {
+  'When we list branches of git://github.com/tillberg/cicero_demo.git': {
     topic: ctxLoad(),
-    'we get an array of branch names': function(branches) {
-      assert.lengthOf(branches, 1);
-      assert.equal(branches[0], 'master');
+    'we get an object of branch names': function(branches) {
+      assert.equal(_.size(branches), 2);
+      assert.match(branches.master, rgxSha1);
+      assert.match(branches.old, rgxSha1);
     }
   },
   'When we get Repo of git://github.com/tillberg/euler.git': {
@@ -180,7 +181,7 @@ repoFuncTests.addBatch({
       },
       'and we should get an error because master does not exist': function(err, tree) {
         assert.ok(err);
-        assert.isNull(tree);
+        assert.isUndefined(tree);
       }
     }
   },
@@ -192,7 +193,35 @@ repoFuncTests.addBatch({
       },
       'we should get a file that says hello': function(err, data) {
         assert.ifError(err);
-        assert.equal(data, 'hello\n');
+        assert.equal(data, 'helloA\n');
+      }
+    }
+  },
+  'When we get master of a new repo-A': {
+    topic: ctxLoad(),
+    'and get README': {
+      topic: function(repo) {
+        repo.readFile('README', this.callback);
+      },
+      'and then commit a change': {
+        topic: function(readme, tree) {
+          var repo = tree.repo;
+          var callback = this.callback;
+          initRepo(repo.url, 'B', function() { callback(null, repo); });
+        },
+        'and get README of the new sha1': {
+          topic: function(repo) {
+            var callback = this.callback;
+            exec('git', ['rev-parse', 'HEAD'], { cwd: repo.url }, function(err, data) {
+              var sha1 = _.trim(data);
+              repo.tree(sha1).readFile('README', callback);
+            });
+          },
+          'and we should get the new README file (which requires re-fetching)': function(err, readme) {
+            assert.ifError(err);
+            assert.equal(readme, 'helloB\n');
+          }
+        }
       }
     }
   }
@@ -225,6 +254,16 @@ basicUsageTests.addBatch({
       assert.equal(tree.sha1, '62220098cf3a628110022f770fe8af874f547d4a');
     }
   },
+  'We can get the full rev list of a repo': {
+    topic: function() {
+      gitfs.repo('git://github.com/tillberg/euler.git').getAllRevs(this.callback);
+    },
+    'and it should have the correct number of items': function(err, revs) {
+      assert.ifError(err);
+      assert.lengthOf(revs, 69);
+      _.each(revs, function(rev) { assert.match(rev, rgxSha1); });
+    }
+  },
   'We can checkout a snapshot of a repo to a local path': {
     topic: function() {
       gitfs.repo('git://github.com/tillberg/euler.git').checkout('var/euler', this.callback);
@@ -243,12 +282,38 @@ basicUsageTests.addBatch({
     },
     'then do a find on the checkout path': {
       topic: function() {
-        exec('find', [], { cwd: 'var/euler/' }, this.callback);
+        exec('find', ['-type', 'f'], { cwd: 'var/euler/' }, this.callback);
       },
-      'and we should find 17 items': function(err, data) {
+      'and we should find 12 items': function(err, data) {
         assert.ifError(err);
         // Specifically, we don't want a copy of any git-specific stuff
-        assert.lengthOf(_.trim(data).split('\n'), 17);
+        assert.lengthOf(_.trim(data).split('\n'), 12);
+      }
+    }
+  },
+  'We can get a listing of all files in a repo': {
+    topic: function() {
+      gitfs.repo('git://github.com/tillberg/euler.git').lsAll(this.callback);
+    },
+    'and there should be 12 items': function(err, files) {
+      assert.ifError(err);
+      assert.equal(_.size(files), 12);
+    },
+    'and src/main/scala/Euler.scala should have a sha1 for its blob': function(err, files) {
+      assert.match(files['src/main/scala/Euler.scala'], rgxSha1);
+    },
+    'and if we read a file directly and by using the sha1 we got above': {
+      topic: function(files) {
+        async.parallel([function(done) {
+          gitfs.repo('git://github.com/tillberg/euler.git').readFile('src/main/scala/Euler.scala', done);
+        }, function(done) {
+          gitfs.repo('git://github.com/tillberg/euler.git')._readBlob(files['src/main/scala/Euler.scala'], done);
+        }], this.callback);
+      },
+      'they should be identical': function(err, bothContents) {
+        assert.ifError(err);
+        assert.lengthOf(bothContents[0], bothContents[1].length);
+        assert.equal(bothContents[0], bothContents[1]);
       }
     }
   },
@@ -280,6 +345,39 @@ basicUsageTests.addBatch({
       assert.isUndefined(data); // Shouldn't get data back
     }
   },
+  'We can get a repo with two Repo objects simultaneously': {
+    topic: function() {
+      async.map([1, 2], function(i, cb) {
+        gitfs.workspaceNoMemo().repo('git://github.com/tillberg/cicero_demo_conf.git').readFile('cicero.conf.yaml', cb);
+      }, this.callback);
+    },
+    'and we should get identical correct contents without error': function(err, results) {
+      assert.ifError(err);
+      assert.lengthOf(results, 2);
+      assert.match(results[0], /git:\/\/github\.com\/tillberg\/cicero_demo\.git/);
+      assert.equal(results[0], results[1]);
+    }
+  },
+  // Performance tests should really be run independently
+  'We can time how long it takes to check out the same repo 10 times': {
+    topic: function() {
+      var t; // Only start the timer after the first item
+      var callback = this.callback;
+      async.forEachSeries(_.range(10), function(i, done) {
+        gitfs.repo('git://github.com/tillberg/cicero_demo.git').checkout('var/perftest-' + i, function(err) {
+          if (t === undefined) t = time();
+          done(err);
+        });
+      }, function(err) {
+        callback(err, time() - t);
+      });
+    },
+    'and it should take less than 200 ms': function(err, time) {
+      assert.ifError(err);
+      if (time > 200) assert.isFalse(time);
+    }
+  }
+  /*,
   'We can commit a change to a repo': {
     topic: function() {
       var callback = this.callback;
@@ -311,6 +409,6 @@ basicUsageTests.addBatch({
         assert.match(data, /arrr, me matey/);
       }
     }
-  }
+  }*/
 });
 basicUsageTests.export(module);

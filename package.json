@@ -3,23 +3,24 @@
   "name": "gitfs",
   "description": "play with remote git repos like a filesystem",
   "version": "0.1.0",
-  "homepage": "https://github.com/tillberg/node-gitfs",
+  "homepage": "https://github.com/tillberg/gitfs",
   "repository": {
     "type": "git",
-    "url": "git://github.com/tillberg/node-gitfs.git"
+    "url": "git://github.com/tillberg/gitfs.git"
   },
   "main": "lib/gitfs.js",
   "scripts": {
     "test": "vows test/test.js"
   },
   "engines": {
-    "node": "~0.4.12"
+    "node": "~0.6.3"
   },
   "dependencies": {
-    "underscore": "1.2.1",
+    "underscore": "1.2.2",
     "underscore.string": "2.0.0",
     "optimist": "0.2.8",
     "async": "0.1.15",
+    "fs-ext": "0.2.3",
     "nimble": "0.0.2"
   },
   "devDependencies": {
