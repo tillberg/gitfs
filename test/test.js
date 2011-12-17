@@ -384,7 +384,6 @@ basicUsageTests.addBatch({
         var origSha1 = tree.sha1;
         tree.readFile('app/demo2.js', function(err, data) {
           var newdata = data.replace('hi, ', 'arrr, me matey ');
-          assert.notEqual(data, newdata);
           tree.commit(origSha1, 'commit message', {
             'app/demo2.js': newdata
           }, function(err, newTree) {
