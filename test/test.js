@@ -408,6 +408,35 @@ basicUsageTests.addBatch({
         assert.match(data, /arrr, me matey/);
       }
     }
+  },
+  'We can get the diff of two trees where a file was changed': {
+    topic: function() {
+      gitfs.repo('git://github.com/tillberg/cicero_demo.git').diffTree('5cd63b4498d90c7036cffde9cf2b7afaa4c99bf3', '6696ce5508476edf460080b065d209af2f17c685', this.callback);
+    },
+    'and they should show one file change': function(err, diff) {
+      assert.ifError(err);
+      assert.lengthOf(diff, 1);
+      var diff0 = diff[0];
+      assert.equal(diff0.before.path, diff0.after.path); 
+      assert.equal(diff0.before.sha1, 'd7f0dbb626c1007fc9c98cb96a09636c76655ea0');
+      assert.equal(diff0.after.sha1, '9e7d57c75f8ec3caf31156d5fbd19185e713e0ee');
+    }
+  },
+  'We can get the diff of two trees where a file was renamed and another was added': {
+    topic: function() {
+      gitfs.repo('git://github.com/tillberg/cicero_demo.git').diffTree('1edd86578abb8b6e5b18edaf1ea91000ddc91eb7', '34f7e06bc113b02d5f9a762624fdf806e102007d', this.callback);
+    },
+    'and the diff should show the changes': function(err, diff) {
+      assert.ifError(err);
+      assert.lengthOf(diff, 2);
+      var diffAdd = _.find(diff, function(d) { return d.type === 'add' });
+      assert.equal(diffAdd.after.sha1, 'cc1bdd8bbb1ca19af7e1fe42c37da53847a85d7c');
+      assert.equal(diffAdd.after.path, 'doc/favicon.ico');
+      var diffRename = _.find(diff, function(d) { return d.type === 'rename'; });
+      assert.equal(diffRename.before.sha1, diffRename.after.sha1); 
+      assert.equal(diffRename.before.path, 'README');
+      assert.equal(diffRename.after.path, 'README.md');
+    }
   }
 });
 basicUsageTests.export(module);
