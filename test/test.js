@@ -372,12 +372,11 @@ basicUsageTests.addBatch({
         callback(err, time() - t);
       });
     },
-    'and it should take less than 200 ms': function(err, time) {
+    'and it should take less than 300 ms': function(err, time) {
       assert.ifError(err);
-      if (time > 200) assert.isFalse(time);
+      if (time > 300) assert.isFalse(time);
     }
-  }
-  /*,
+  },
   'We can commit a change to a repo': {
     topic: function() {
       var callback = this.callback;
@@ -409,6 +408,6 @@ basicUsageTests.addBatch({
         assert.match(data, /arrr, me matey/);
       }
     }
-  }*/
+  }
 });
 basicUsageTests.export(module);
