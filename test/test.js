@@ -417,6 +417,7 @@ basicUsageTests.addBatch({
       assert.ifError(err);
       assert.lengthOf(diff, 1);
       var diff0 = diff[0];
+      assert.equal(diff0.type, 'change');
       assert.equal(diff0.before.path, diff0.after.path); 
       assert.equal(diff0.before.sha1, 'd7f0dbb626c1007fc9c98cb96a09636c76655ea0');
       assert.equal(diff0.after.sha1, '9e7d57c75f8ec3caf31156d5fbd19185e713e0ee');
@@ -436,6 +437,19 @@ basicUsageTests.addBatch({
       assert.equal(diffRename.before.sha1, diffRename.after.sha1); 
       assert.equal(diffRename.before.path, 'README');
       assert.equal(diffRename.after.path, 'README.md');
+    }
+  },
+  'We can get the diff of two trees where a file was deleted': {
+    topic: function() {
+      gitfs.repo('git://github.com/tillberg/cicero_demo.git').diffTree('19cf84c83245869a1872fda3e2fdb86cf3c886c4', '1edd86578abb8b6e5b18edaf1ea91000ddc91eb7', this.callback);
+    },
+    'and the diff should show the change': function(err, diff) {
+      assert.ifError(err);
+      assert.lengthOf(diff, 1);
+      var diff0 = diff[0];
+      assert.equal(diff0.type, 'delete');
+      assert.equal(diff0.before.path, 'doc/favicon.ico');
+      assert.equal(diff0.before.sha1, '2218e13156ee3ab883cc27e8f2be10cd89bb504f');
     }
   }
 });
